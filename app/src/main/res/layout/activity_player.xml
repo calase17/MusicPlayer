@@ -185,6 +185,8 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:id="@+id/seekbar"
+            android:paddingStart="6dp"
+            android:background="@drawable/seekbar_background_player"
             android:layout_marginStart="36dp"
             android:layout_marginEnd="36dp"
             android:layout_marginTop="40dp"/>

@@ -35,6 +35,7 @@ import java.util.Random;
 
 
 import static com.kgeorge.myapp.MusicAdapter.mFiles;
+import static com.kgeorge.myapp.MiniPlayerFragment.mediaPlayer;
 
 public class PlayerActivity extends AppCompatActivity implements MediaPlayer.OnCompletionListener {
 
@@ -47,7 +48,6 @@ public class PlayerActivity extends AppCompatActivity implements MediaPlayer.OnC
     int position = -1;
     static ArrayList<MusicFiles> songsList = new ArrayList<>();
     static Uri uri;
-    static MediaPlayer mediaPlayer;
     Bitmap bitmap;
     Thread playThread, skipNextThread, skipPrevThread, sleepTimerThread;
     private Handler handler = new Handler();
@@ -55,14 +55,11 @@ public class PlayerActivity extends AppCompatActivity implements MediaPlayer.OnC
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+        setContentView(R.layout.activity_player);
+        getInfo();
         ActionBar actionBar = getSupportActionBar();
         actionBar.hide();
-        getInfo();
         getIntentMethod();
-        createChannel();
-        registerReceiver(broadcastReceiver, new IntentFilter("Tunes"));
-        startService(new Intent(getBaseContext(),OnClearFromRecentService.class));
         albumName.setText(songsList.get(position).getAlbum());
         songName.setText(songsList.get(position).getTitle());
         artistName.setText(songsList.get(position).getArtist());
@@ -129,22 +126,12 @@ public class PlayerActivity extends AppCompatActivity implements MediaPlayer.OnC
         });
     }
 
-    private void createChannel(){
 
-        NotificationChannel channel = new NotificationChannel(CreateNotification.ID,
-                "Audio", NotificationManager.IMPORTANCE_LOW);
-
-        notificationManager = this.getSystemService(NotificationManager.class);
-        if (notificationManager != null){
-            notificationManager.createNotificationChannel(channel);
-        }
-    }
 
     BroadcastReceiver broadcastReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             String action = intent.getExtras().getString("actionname");
-
             switch (action){
                 case CreateNotification.PREV:
                     skipPrevBtnClicked();
@@ -289,18 +276,22 @@ public class PlayerActivity extends AppCompatActivity implements MediaPlayer.OnC
     }
 
     private void playPauseBtnClicked() {
+        boolean isPlaying;
         if (mediaPlayer.isPlaying()) {
+            isPlaying = true;
             playPauseBtn.setImageResource(R.drawable.ic_play_arrow);
             CreateNotification.notiCreate(this, songsList.get(position), bitmap, R.drawable.ic_play_arrow);
             mediaPlayer.pause();
             seekBar.setMax(mediaPlayer.getDuration() / 1000);
             setDetails();
         } else {
+            isPlaying = false;
             playPauseBtn.setImageResource(R.drawable.ic_pause_24px);
             CreateNotification.notiCreate(this, songsList.get(position), bitmap, R.drawable.ic_pause_24px);
             mediaPlayer.start();
             setDetails();
         }
+        MiniPlayerFragment.setPlayPauseStatus(isPlaying);
     }
 
 
@@ -360,22 +351,17 @@ public class PlayerActivity extends AppCompatActivity implements MediaPlayer.OnC
         position = getIntent().getIntExtra("position", -1);
         songsList = mFiles;
         if (songsList != null) {
-            playPauseBtn.setImageResource(R.drawable.ic_pause_24px);
             uri = Uri.parse(songsList.get(position).getPath());
         }
-        if (mediaPlayer != null) {
-            mediaPlayer.stop();
-            mediaPlayer.release();
-            mediaPlayer = MediaPlayer.create(getApplicationContext(), uri);
-            readyToStart();
-        } else {
-            mediaPlayer = MediaPlayer.create(getApplicationContext(), uri);
-            readyToStart();
-        }
         seekBar.setMax(mediaPlayer.getDuration() / 1000);
+
+        if (mediaPlayer.isPlaying()){
+            playPauseBtn.setImageResource(R.drawable.ic_pause_24px);
+        }
+        else {
+            playPauseBtn.setImageResource(R.drawable.ic_play_arrow);
+        }
         metaData(uri);
-
-
     }
 
     private void metaData(Uri uri) {
@@ -475,10 +461,4 @@ public class PlayerActivity extends AppCompatActivity implements MediaPlayer.OnC
         }
     }
 
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        notificationManager.cancelAll();
-        unregisterReceiver(broadcastReceiver);
-    }
 }

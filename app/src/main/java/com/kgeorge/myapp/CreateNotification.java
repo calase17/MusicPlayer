@@ -63,6 +63,7 @@ public class CreateNotification {
                 .setStyle(new Notification.MediaStyle()
                 .setShowActionsInCompactView(0,1,2)
                 .setMediaSession(mediaSession.getSessionToken()))
+                .setOngoing(true)
                 .setLargeIcon(bitmap)
                 .setOnlyAlertOnce(true)
                 .setShowWhen(false)

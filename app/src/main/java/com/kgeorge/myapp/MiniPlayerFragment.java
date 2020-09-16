@@ -1,15 +1,22 @@
 package com.kgeorge.myapp;
 
 
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.ImageFormat;
 import android.media.MediaMetadataRetriever;
 import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.widget.ImageView;
+import android.widget.RelativeLayout;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import androidx.fragment.app.Fragment;
@@ -31,12 +38,15 @@ public class MiniPlayerFragment extends Fragment {
     TextView songView;
     TextView artistView;
     ImageView coverView;
-    ImageView playPause;
+    static ImageView playPause;
     SeekBar seekBar;
+    RelativeLayout miniPlayer;
     static MediaPlayer mediaPlayer;
     static Uri uri;
     Thread playPauseThread;
+    Thread relThread;
     Bitmap bitmap;
+    NotificationManager notificationManager;
     private Handler handler = new Handler();
 
 
@@ -50,7 +60,7 @@ public class MiniPlayerFragment extends Fragment {
 
 
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container,
+    public View onCreateView(final LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
         // Inflate the layout for this fragment
         View view = inflater.inflate(R.layout.fragment_mini_player, container, false);
@@ -59,9 +69,12 @@ public class MiniPlayerFragment extends Fragment {
         coverView =  view.findViewById(R.id.mini_player_cover);
         playPause =  view.findViewById(R.id.mini_player_control);
         seekBar = view.findViewById(R.id.mini_seekbar);
+        miniPlayer = view.findViewById(R.id.mini_rel);
 
         startMusic();
-
+        createChannel();
+        getActivity().registerReceiver(broadcastReceiver, new IntentFilter("Tunes"));
+        getActivity().startService(new Intent(getActivity().getBaseContext(), OnClearFromRecentService.class));
         songView.setText(mFiles.get(position).getTitle());
         artistView.setText(mFiles.get(position).getArtist());
 
@@ -91,42 +104,105 @@ public class MiniPlayerFragment extends Fragment {
             bitmap = BitmapFactory.decodeResource(getResources(), R.drawable.sample);
                 }
 
+
+
         return view;
+    }
+
+    BroadcastReceiver broadcastReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getExtras().getString("actionname");
+            if (CreateNotification.PLAY.equals(action)){
+                playBtnClicked();
+            }
+        }
+    };
+
+
+
+    private void createChannel(){
+
+        NotificationChannel channel = new NotificationChannel(CreateNotification.ID,
+                "Audio", NotificationManager.IMPORTANCE_LOW);
+
+        notificationManager = getContext().getSystemService(NotificationManager.class);
+        if (notificationManager != null){
+            notificationManager.createNotificationChannel(channel);
+        }
     }
 
     @Override
     public void onResume() {
         super.onResume();
+        relThread();
         miniPlayerThread();
     }
 
+
+    private void relThread(){
+        relThread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                miniPlayer.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                            Intent intent = new Intent(getActivity(), PlayerActivity.class);
+                            intent.putExtra("position", position);
+                            startActivity(intent);
+                        }
+                });
+            }
+        });
+
+        relThread.start();
+    }
+
+
     private void miniPlayerThread(){
-        playPauseThread = new Thread(){
+        playPauseThread = new Thread() {
             @Override
             public void run() {
                 super.run();
                 playPause.setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View view) {
-                        if (isPlaying){
-                            isPlaying = false;
-                            mediaPlayer.pause();
-                            seekBar.setMax(mediaPlayer.getDuration() / 1000);
-                            CreateNotification.notiCreate(getContext(), mFiles.get(position), bitmap, R.drawable.ic_play_arrow );
-                            playPause.setImageResource(R.drawable.playwhite);
-                        }
-                        else {
-                            isPlaying = true;
-                            mediaPlayer.start();
-                            CreateNotification.notiCreate(getContext(), mFiles.get(position), bitmap, R.drawable.ic_pause_24px );
-                            playPause.setImageResource(R.drawable.pausewhite);
-                        }
+                        playBtnClicked();
                     }
                 });
             }
         };
         playPauseThread.start();
+    }
 
+
+
+
+
+
+
+    private void playBtnClicked(){
+        if (isPlaying) {
+            isPlaying = false;
+            mediaPlayer.pause();
+            seekBar.setMax(mediaPlayer.getDuration() / 1000);
+            CreateNotification.notiCreate(getContext(), mFiles.get(position), bitmap, R.drawable.ic_play_arrow);
+            playPause.setImageResource(R.drawable.playwhite);
+        } else {
+            isPlaying = true;
+            mediaPlayer.start();
+            CreateNotification.notiCreate(getContext(), mFiles.get(position), bitmap, R.drawable.ic_pause_24px);
+            playPause.setImageResource(R.drawable.pausewhite);
+                }
+            }
+
+    public static void setPlayPauseStatus(boolean isPlaying){
+        if (isPlaying){
+            playPause.setImageResource(R.drawable.playwhite);
+        }
+        else {
+            playPause.setImageResource(R.drawable.pausewhite);
+        }
     }
 
 
@@ -142,7 +218,6 @@ public class MiniPlayerFragment extends Fragment {
             mediaPlayer.start();
         }
         else {
-            System.out.println("hello");
             mediaPlayer = MediaPlayer.create(getContext(), uri);
             mediaPlayer.start();
         }
@@ -163,6 +238,13 @@ public class MiniPlayerFragment extends Fragment {
         art = retriever.getEmbeddedPicture();
         retriever.release();
         return art;
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        notificationManager.cancelAll();
+        getContext().unregisterReceiver(broadcastReceiver);
     }
 
 }
